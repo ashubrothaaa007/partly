@@ -1,0 +1,72 @@
+
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Partly - Meet Dance Connect</title>
+      <link rel="icon" type="image/png" href="/favicon.png" />
+      <meta name="description" content="Multiplayer virtual beach party game where players can socialize, dance, chat, attend concerts, explore tropical islands, and enjoy real-time experiences with friends from anywhere in the world." />
+      <meta name="robots" content="noindex, nofollow" />
+      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
+      
+      <!-- Privacy and Anti-Inspection Protections -->
+      <script>
+        (function() {
+          // Disable Right Click
+          document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+          }, false);
+
+          // Disable Developer Tool Shortcuts
+          document.addEventListener('keydown', function(e) {
+            // Block F12 (123)
+            if (e.keyCode === 123) {
+              e.preventDefault();
+              return false;
+            }
+            // Block Ctrl+Shift+I (Inspect), Ctrl+Shift+J (Console), Ctrl+Shift+C (Element Selector)
+            if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) {
+              e.preventDefault();
+              return false;
+            }
+            // Block Ctrl+U (View Source)
+            if (e.ctrlKey && e.keyCode === 85) {
+              e.preventDefault();
+              return false;
+            }
+          }, false);
+
+          // Active DevTools Detection & Anti-Debugging Loop
+          // We run a debugger loop which freezes code execution if DevTools is open.
+          setInterval(function() {
+            const startTime = performance.now();
+            debugger;
+            const endTime = performance.now();
+            if (endTime - startTime > 100) {
+              // DevTools is open - clear the console and log warning
+              try { console.clear(); } catch(err) {}
+              console.log(
+                "%cSTOP!",
+                "color: #ff0055; font-size: 50px; font-weight: bold; text-shadow: 0 0 10px rgba(255,0,85,0.8);"
+              );
+              console.log(
+                "%cThis browser feature is restricted. Attempting to inspect, modify, or copy site assets is blocked for privacy and security protection.",
+                "color: #ffffff; font-size: 16px; font-family: sans-serif;"
+              );
+            }
+          }, 1000);
+        })();
+      </script>
+      
+    </head>
+
+    <body>
+      
+      <div id="root"></div>
+      <script type="module" src="/src/main.tsx"></script>
+      
+    </body>
+  </html>
+  
