@@ -576,6 +576,176 @@ function createSignboard(x: number, z: number, rotY: number, text: string) {
   return g;
 }
 
+let cachedWisprTexFront: THREE.Texture | null = null;
+let cachedWisprTexBack: THREE.Texture | null = null;
+
+function getWisprBannerTextures() {
+  if (!cachedWisprTexFront) {
+    const loader = new THREE.TextureLoader();
+    cachedWisprTexFront = loader.load('/wispr_beach_banner.jpg');
+    cachedWisprTexFront.colorSpace = THREE.SRGBColorSpace;
+
+    // Un-mirrored texture for the rear side so it is clearly readable from both front and back
+    cachedWisprTexBack = loader.load('/wispr_beach_banner.jpg');
+    cachedWisprTexBack.colorSpace = THREE.SRGBColorSpace;
+    cachedWisprTexBack.wrapS = THREE.RepeatWrapping;
+    cachedWisprTexBack.repeat.x = -1;
+    cachedWisprTexBack.offset.x = 1;
+  }
+  return { front: cachedWisprTexFront, back: cachedWisprTexBack };
+}
+
+function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  g.rotation.y = rotY;
+
+  const { front: texFront, back: texBack } = getWisprBannerTextures();
+
+  // Banner dimensions matching image aspect ratio (1024x483 -> 6.0 x 2.83)
+  const bannerW = 6.0;
+  const bannerH = 2.83;
+  const bannerCenterY = 2.65;
+
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x422a14, roughness: 0.85, metalness: 0.1 });
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x5a381e, roughness: 0.9, flatShading: true });
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x222225, metalness: 0.8, roughness: 0.3 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xfff3d6 });
+
+  // 1. Vertical Timber Main Posts
+  const postHeight = 4.4;
+  const postRadius = 0.12;
+  const postDist = bannerW / 2 + 0.12;
+
+  [-postDist, postDist].forEach(px => {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(postRadius, postRadius * 1.1, postHeight, 10), postMat);
+    post.position.set(px, postHeight / 2, 0);
+    post.castShadow = true;
+    post.receiveShadow = true;
+    g.add(post);
+
+    // Decorative iron/copper cap on top
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(postRadius * 1.4, 0.25, 8), metalMat);
+    cap.position.set(px, postHeight + 0.12, 0);
+    g.add(cap);
+
+    // Sandstone footings at beach level
+    const footStone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35), MAT_ROCK);
+    footStone.position.set(px, 0.18, 0);
+    footStone.scale.set(1.2, 0.6, 1.2);
+    footStone.castShadow = true;
+    g.add(footStone);
+
+    // Diagonal rear support strut (anchored into beach sand)
+    const brace = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.8, 8), postMat);
+    brace.position.set(px, 1.2, -1.0);
+    brace.rotation.x = -Math.PI / 4;
+    brace.castShadow = true;
+    g.add(brace);
+  });
+
+  // 2. Horizontal Support Rails (top and bottom)
+  const railRadius = 0.08;
+  const topRailY = bannerCenterY + bannerH / 2 + 0.08;
+  const botRailY = bannerCenterY - bannerH / 2 - 0.08;
+
+  [topRailY, botRailY].forEach(ry => {
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(railRadius, railRadius, bannerW + 0.5, 8), frameMat);
+    rail.rotation.z = Math.PI / 2;
+    rail.position.set(0, ry, 0);
+    rail.castShadow = true;
+    g.add(rail);
+  });
+
+  // 3. Wooden Backing Board / Frame Bevel
+  const frameBack = new THREE.Mesh(new THREE.BoxGeometry(bannerW + 0.16, bannerH + 0.16, 0.08), frameMat);
+  frameBack.position.set(0, bannerCenterY, 0);
+  frameBack.castShadow = true;
+  g.add(frameBack);
+
+  // 4. Front Face Poster Mesh
+  const frontMat = new THREE.MeshStandardMaterial({
+    map: texFront,
+    roughness: 0.75,
+    metalness: 0.05,
+  });
+  const frontPlane = new THREE.Mesh(new THREE.PlaneGeometry(bannerW, bannerH), frontMat);
+  frontPlane.position.set(0, bannerCenterY, 0.045);
+  frontPlane.receiveShadow = true;
+  g.add(frontPlane);
+
+  // 5. Back Face Poster Mesh (un-mirrored so readable from both directions)
+  const backMat = new THREE.MeshStandardMaterial({
+    map: texBack,
+    roughness: 0.75,
+    metalness: 0.05,
+  });
+  const backPlane = new THREE.Mesh(new THREE.PlaneGeometry(bannerW, bannerH), backMat);
+  backPlane.rotation.y = Math.PI;
+  backPlane.position.set(0, bannerCenterY, -0.045);
+  backPlane.receiveShadow = true;
+  g.add(backPlane);
+
+  // 6. Overhead Festival Spotlights (warm illumination for night and day)
+  [-1.8, 1.8].forEach(sx => {
+    // Front spotlight
+    const armF = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.65), metalMat);
+    armF.position.set(sx, topRailY + 0.22, 0.3);
+    armF.rotation.x = Math.PI / 3;
+    g.add(armF);
+
+    const hoodF = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.22, 8), metalMat);
+    hoodF.position.set(sx, topRailY + 0.45, 0.55);
+    hoodF.rotation.x = Math.PI * 0.75;
+    g.add(hoodF);
+
+    const bulbF = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), glowMat);
+    bulbF.position.set(sx, topRailY + 0.4, 0.52);
+    g.add(bulbF);
+
+    const spotLightF = new THREE.PointLight(0xfff3d6, 2.5, 8);
+    spotLightF.position.set(sx, topRailY + 0.4, 0.65);
+    g.add(spotLightF);
+
+    // Rear spotlight
+    const armB = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.65), metalMat);
+    armB.position.set(sx, topRailY + 0.22, -0.3);
+    armB.rotation.x = -Math.PI / 3;
+    g.add(armB);
+
+    const hoodB = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.22, 8), metalMat);
+    hoodB.position.set(sx, topRailY + 0.45, -0.55);
+    hoodB.rotation.x = -Math.PI * 0.75;
+    g.add(hoodB);
+
+    const bulbB = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), glowMat);
+    bulbB.position.set(sx, topRailY + 0.4, -0.52);
+    g.add(bulbB);
+
+    const spotLightB = new THREE.PointLight(0xfff3d6, 2.0, 7);
+    spotLightB.position.set(sx, topRailY + 0.4, -0.65);
+    g.add(spotLightB);
+  });
+
+  // 7. Decorative festive fairy bulbs along the top timber rail
+  const festoonColors = [0xff6b6b, 0x4ecdc4, 0xffe66d, 0x1a535c, 0xff9f43, 0xa55eea];
+  for (let i = 0; i <= 6; i++) {
+    const fx = -2.4 + i * 0.8;
+    const bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.06, 6, 6),
+      new THREE.MeshStandardMaterial({
+        color: festoonColors[i % festoonColors.length],
+        emissive: festoonColors[i % festoonColors.length],
+        emissiveIntensity: 0.8
+      })
+    );
+    bulb.position.set(fx, topRailY + 0.08, 0);
+    g.add(bulb);
+  }
+
+  return g;
+}
+
 function createBird(x: number, y: number, z: number) {
   const g = new THREE.Group(); g.position.set(x, y, z);
   const body = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.6, 3), new THREE.MeshBasicMaterial({ color: 0x222222 }));
@@ -1635,6 +1805,12 @@ function buildScene(scene: THREE.Scene, videoId: string): { uniforms: { time: { 
   scene.add(createLEDCube(15, -20, 0xff00ff)); addBoxCol(15, -20, 1.5, 1.5);
   scene.add(createSignboard(0, -2, 0, "MAIN STAGE")); addBoxCol(0, -2, 4, 0.5);
   scene.add(createSignboard(-25, 10, Math.PI/4, "CHILL ZONE")); addBoxCol(-25, 10, 4, 0.5, Math.PI/4);
+
+  // Wispr Flow Beach Banners (featured marketing billboard on the beach sand)
+  scene.add(createBeachWisprBanner(8.5, 1.0, -Math.PI / 8));
+  addBoxCol(8.5, 1.0, 6.4, 0.8, -Math.PI / 8);
+  scene.add(createBeachWisprBanner(-18, 14, Math.PI / 5));
+  addBoxCol(-18, 14, 6.4, 0.8, Math.PI / 5);
 
   // Balloons
   for(let i=0; i<10; i++) scene.add(createBalloon((Math.random()-0.5)*40, -10 + Math.random()*20, Math.random()*0xffffff));
