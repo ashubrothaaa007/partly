@@ -2266,8 +2266,9 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
     const originParam = typeof window !== 'undefined' ? `&origin=${encodeURIComponent(window.location.origin)}` : '';
     const iframe = document.createElement('iframe');
     iframe.id = 'stage-youtube-iframe';
-    const startSec = getSyncedStartSeconds(videoId);
-    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&enablejsapi=1&iv_load_policy=3&showinfo=0&disablekb=1&loop=1&playlist=${videoId}&vq=medium&start=${startSec}${originParam}`;
+    const safeVideoId = encodeURIComponent(videoId.replace(/[^a-zA-Z0-9_-]/g, ''));
+    const startSec = getSyncedStartSeconds(safeVideoId);
+    iframe.src = `https://www.youtube.com/embed/${safeVideoId}?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&enablejsapi=1&iv_load_policy=3&showinfo=0&disablekb=1&loop=1&playlist=${safeVideoId}&vq=medium&start=${startSec}${originParam}`;
     iframe.allow = 'autoplay; encrypted-media; fullscreen';
     iframe.title = 'Stage Screen';
     iframe.style.width = '100%';
@@ -2913,8 +2914,9 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
     const iframe = document.getElementById('stage-youtube-iframe') as HTMLIFrameElement;
     if (iframe) {
       const originParam = typeof window !== 'undefined' ? `&origin=${encodeURIComponent(window.location.origin)}` : '';
-      const startSec = getSyncedStartSeconds(videoId);
-      iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&enablejsapi=1&iv_load_policy=3&showinfo=0&disablekb=1&loop=1&playlist=${videoId}&vq=medium&start=${startSec}${originParam}`;
+      const safeVideoId = encodeURIComponent(videoId.replace(/[^a-zA-Z0-9_-]/g, ''));
+      const startSec = getSyncedStartSeconds(safeVideoId);
+      iframe.src = `https://www.youtube.com/embed/${safeVideoId}?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&enablejsapi=1&iv_load_policy=3&showinfo=0&disablekb=1&loop=1&playlist=${safeVideoId}&vq=medium&start=${startSec}${originParam}`;
     }
   }, [videoId]);
 

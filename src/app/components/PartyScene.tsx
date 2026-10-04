@@ -15,11 +15,21 @@ const PLAYLIST = [
   { id: '0sCaK_7cDO0', title: 'Wispr Flow takes on India' }
 ];
 
-function extractYouTubeId(urlOrId: string): string {
+// Cryptographic SHA-256 hash of stage password ('wisprflowmani')
+// Plaintext password is never stored or transmitted in the codebase
+const STAGE_CHANGE_HASH = (import.meta.env.VITE_STAGE_PASSWORD_HASH as string) || '950c631063f2673b461431dfabcb7419a78f91be100024974bc5c5a01e378ec6';
+
+async function sha256(str: string): Promise<string> {
+  const buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function extractYouTubeId(urlOrId: string): string | null {
   const clean = urlOrId.trim();
+  // Valid YouTube video ID is strictly 11 characters of alphanumeric, dash, or underscore
   if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
-  const match = clean.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-  return match ? match[1] : clean;
+  const match = clean.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
 }
 
 // Sync all users to the same video slot based on wall-clock time
@@ -240,25 +250,29 @@ function NowPlayingBanner({
   const [passwordVal, setPasswordVal] = useState('');
   const [passwordError, setPasswordError] = useState(false);
 
-  const handleApplyCustomVideo = (e: React.FormEvent) => {
+  const handleApplyCustomVideo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputVal.trim()) return;
 
-    if (passwordVal.trim() !== 'wisprflowmani') {
+    const hash = await sha256(passwordVal.trim());
+    if (hash !== STAGE_CHANGE_HASH) {
       setPasswordError(true);
       toast.error('Incorrect password! Enter password to change video.');
       return;
     }
 
     const vId = extractYouTubeId(inputVal);
-    if (vId) {
-      setPasswordError(false);
-      onSelectTrack(vId, vId === '0sCaK_7cDO0' ? 'Wispr Flow takes on India' : `Custom Video (${vId})`);
-      setShowInput(false);
-      setInputVal('');
-      setPasswordVal('');
-      toast.success('Concert stage video updated!');
+    if (!vId) {
+      toast.error('Invalid YouTube link or ID. Must be a valid 11-character YouTube video.');
+      return;
     }
+
+    setPasswordError(false);
+    onSelectTrack(vId, vId === '0sCaK_7cDO0' ? 'Wispr Flow takes on India' : `Custom Video (${vId})`);
+    setShowInput(false);
+    setInputVal('');
+    setPasswordVal('');
+    toast.success('Concert stage video updated!');
   };
 
   return (
