@@ -307,17 +307,39 @@ export function getWisprBannerTextures() {
   return { front: cachedWisprTexFront, back: cachedWisprTexBack };
 }
 
-export function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
+let cachedHackerHouseTexFront: THREE.Texture | null = null;
+let cachedHackerHouseTexBack: THREE.Texture | null = null;
+
+export function getHackerHouseBannerTextures() {
+  if (!cachedHackerHouseTexFront) {
+    const loader = new THREE.TextureLoader();
+    cachedHackerHouseTexFront = loader.load('/hacker_house_banner.png');
+    cachedHackerHouseTexFront.colorSpace = THREE.SRGBColorSpace;
+
+    // Un-mirrored texture for the rear side
+    cachedHackerHouseTexBack = loader.load('/hacker_house_banner.png');
+    cachedHackerHouseTexBack.colorSpace = THREE.SRGBColorSpace;
+    cachedHackerHouseTexBack.wrapS = THREE.RepeatWrapping;
+    cachedHackerHouseTexBack.repeat.x = -1;
+    cachedHackerHouseTexBack.offset.x = 1;
+  }
+  return { front: cachedHackerHouseTexFront, back: cachedHackerHouseTexBack };
+}
+
+export function createBeachBillboard(
+  x: number,
+  z: number,
+  rotY: number = 0,
+  textures: { front: THREE.Texture; back: THREE.Texture },
+  bannerW: number = 6.0,
+  bannerH: number = 2.83
+) {
   const g = new THREE.Group();
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
 
-  const { front: texFront, back: texBack } = getWisprBannerTextures();
-
-  // Banner dimensions matching image aspect ratio (1024x483 -> 6.0 x 2.83)
-  const bannerW = 6.0;
-  const bannerH = 2.83;
-  const bannerCenterY = 2.65;
+  const { front: texFront, back: texBack } = textures;
+  const bannerCenterY = bannerH / 2 + 1.25;
 
   const frameMat = new THREE.MeshStandardMaterial({ color: 0x422a14, roughness: 0.85, metalness: 0.1 });
   const postMat = new THREE.MeshStandardMaterial({ color: 0x5a381e, roughness: 0.9, flatShading: true });
@@ -325,7 +347,9 @@ export function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
   const glowMat = new THREE.MeshBasicMaterial({ color: 0xfff3d6 });
 
   // 1. Vertical Timber Main Posts
-  const postHeight = 4.4;
+  const topRailY = bannerCenterY + bannerH / 2 + 0.08;
+  const botRailY = bannerCenterY - bannerH / 2 - 0.08;
+  const postHeight = topRailY + 0.35;
   const postRadius = 0.12;
   const postDist = bannerW / 2 + 0.12;
 
@@ -358,8 +382,6 @@ export function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
 
   // 2. Horizontal Support Rails (top and bottom)
   const railRadius = 0.08;
-  const topRailY = bannerCenterY + bannerH / 2 + 0.08;
-  const botRailY = bannerCenterY - bannerH / 2 - 0.08;
 
   [topRailY, botRailY].forEach(ry => {
     const rail = new THREE.Mesh(new THREE.CylinderGeometry(railRadius, railRadius, bannerW + 0.5, 8), frameMat);
@@ -399,7 +421,8 @@ export function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
   g.add(backPlane);
 
   // 6. Overhead Festival Spotlights (warm illumination for night and day)
-  [-1.8, 1.8].forEach(sx => {
+  const spotXOffset = bannerW * 0.3;
+  [-spotXOffset, spotXOffset].forEach(sx => {
     // Front spotlight
     const armF = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.65), metalMat);
     armF.position.set(sx, topRailY + 0.22, 0.3);
@@ -441,8 +464,9 @@ export function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
 
   // 7. Decorative festive fairy bulbs along the top timber rail
   const festoonColors = [0xff6b6b, 0x4ecdc4, 0xffe66d, 0x1a535c, 0xff9f43, 0xa55eea];
-  for (let i = 0; i <= 6; i++) {
-    const fx = -2.4 + i * 0.8;
+  const numBulbs = 7;
+  for (let i = 0; i < numBulbs; i++) {
+    const fx = -(bannerW * 0.4) + (i / (numBulbs - 1)) * (bannerW * 0.8);
     const bulb = new THREE.Mesh(
       new THREE.SphereGeometry(0.06, 6, 6),
       new THREE.MeshStandardMaterial({
@@ -456,6 +480,15 @@ export function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
   }
 
   return g;
+}
+
+export function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
+  return createBeachBillboard(x, z, rotY, getWisprBannerTextures(), 6.0, 2.83);
+}
+
+export function createBeachHackerHouseBanner(x: number, z: number, rotY: number = 0) {
+  // Aspect ratio 1024x581 -> 6.0 width x 3.40 height
+  return createBeachBillboard(x, z, rotY, getHackerHouseBannerTextures(), 6.0, 3.40);
 }
 
 

@@ -20,6 +20,7 @@ import {
   createPhotoBooth,
   createSignboard,
   createBeachWisprBanner,
+  createBeachHackerHouseBanner,
   createBeachShop
 } from './props';
 import { createBird, createShark, createFish, createBoat, createChristTheRedeemer } from './wildlife';
@@ -337,10 +338,10 @@ export function buildScene(scene: THREE.Scene, videoId: string): { uniforms: { t
   scene.add(createSignboard(0, -2, 0, "MAIN STAGE")); addBoxCol(0, -2, 4, 0.5);
   scene.add(createSignboard(-25, 10, Math.PI/4, "CHILL ZONE")); addBoxCol(-25, 10, 4, 0.5, Math.PI/4);
 
-  // Wispr Flow Beach Banners (featured marketing billboard on the beach sand)
+  // Beach Marketing Billboards (Wispr Flow & Hacker House Goa)
   scene.add(createBeachWisprBanner(8.5, 1.0, -Math.PI / 8));
   addBoxCol(8.5, 1.0, 6.4, 0.8, -Math.PI / 8);
-  scene.add(createBeachWisprBanner(-18, 14, Math.PI / 5));
+  scene.add(createBeachHackerHouseBanner(-18, 14, Math.PI / 5));
   addBoxCol(-18, 14, 6.4, 0.8, Math.PI / 5);
 
   // Balloons
