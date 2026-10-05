@@ -38,25 +38,25 @@
             }
           }, false);
 
-          // Active DevTools Detection & Anti-Debugging Loop
-          // We run a debugger loop which freezes code execution if DevTools is open.
-          setInterval(function() {
-            const startTime = performance.now();
-            debugger;
-            const endTime = performance.now();
-            if (endTime - startTime > 100) {
-              // DevTools is open - clear the console and log warning
-              try { console.clear(); } catch(err) {}
-              console.log(
-                "%cSTOP!",
-                "color: #ff0055; font-size: 50px; font-weight: bold; text-shadow: 0 0 10px rgba(255,0,85,0.8);"
-              );
-              console.log(
-                "%cThis browser feature is restricted. Attempting to inspect, modify, or copy site assets is blocked for privacy and security protection.",
-                "color: #ffffff; font-size: 16px; font-family: sans-serif;"
-              );
-            }
-          }, 1000);
+          // Active DevTools Detection & Anti-Debugging Loop (Production only)
+          if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            setInterval(function() {
+              const startTime = performance.now();
+              debugger;
+              const endTime = performance.now();
+              if (endTime - startTime > 100) {
+                try { console.clear(); } catch(err) {}
+                console.log(
+                  "%cSTOP!",
+                  "color: #ff0055; font-size: 50px; font-weight: bold; text-shadow: 0 0 10px rgba(255,0,85,0.8);"
+                );
+                console.log(
+                  "%cThis browser feature is restricted. Attempting to inspect, modify, or copy site assets is blocked for privacy and security protection.",
+                  "color: #ffffff; font-size: 16px; font-family: sans-serif;"
+                );
+              }
+            }, 1000);
+          }
         })();
       </script>
       
