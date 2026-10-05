@@ -17,3 +17,6 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+# Supabase
+supabase/.temp/
