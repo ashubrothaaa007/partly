@@ -1,6 +1,8 @@
 # Partly 🏖️🎶
 
 > A high-performance 3D multiplayer virtual beach concert platform built with React, Three.js, and Supabase Realtime.
+> 
+> 🌐 **Live Website**: [https://trypartly.vercel.app](https://trypartly.vercel.app)
 
 ![Partly Banner](public/wispr_beach_banner.jpg)
 
