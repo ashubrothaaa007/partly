@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import { ThreeCanvas } from './ThreeCanvas';
 import { ChatPanel } from './ChatPanel';
 import { HUD } from './HUD';
 import { useMultiplayer, PlayerData } from './useMultiplayer';
+import { supabase } from '../../utils/supabaseClient';
 
 interface Props {
   playerName: string;
@@ -92,14 +93,59 @@ const ROOM_NAMES: Record<string, string> = {
 export function PartyScene({ playerName, roomId }: Props) {
   const [playerAnimation, setPlayerAnimation] = useState('idle');
   const playerColor = getPlayerColor(playerName);
-  const { players, broadcastUpdate, broadcastChat, status, socketId, latency, roomName } = useMultiplayer(playerName, playerColor, roomId, setPlayerAnimation);
-  const activePlayers = Object.values(players);
 
-  // Active video track state (defaults to user's video)
+  // Active video track state (synced across all players in room)
   const [activeTrack, setActiveTrack] = useState<{ id: string; title: string }>({
     id: '0sCaK_7cDO0',
     title: 'Wispr Flow takes on India'
   });
+
+  // Handle track changes broadcast by other players in real-time
+  const handleRemoteTrackChange = useCallback((track: { id: string; title: string }) => {
+    setActiveTrack(prev => {
+      if (prev.id === track.id) return prev;
+      toast(`🎵 Stage track changed: ${track.title}`, {
+        duration: 4000
+      });
+      return track;
+    });
+  }, []);
+
+  const { players, broadcastUpdate, broadcastChat, broadcastTrack, status, socketId, latency, roomName } = useMultiplayer(
+    playerName,
+    playerColor,
+    roomId,
+    setPlayerAnimation,
+    handleRemoteTrackChange
+  );
+  const activePlayers = Object.values(players);
+
+  // Sync current active track from Supabase so all new joins start with the current song
+  useEffect(() => {
+    supabase
+      .from('kv_store_488bc5db')
+      .select('value')
+      .eq('key', `room:${roomId}:track`)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value && data.value.id) {
+          setActiveTrack(data.value);
+        }
+      })
+      .catch(() => {});
+  }, [roomId]);
+
+  const handleSelectTrack = (id: string, title: string) => {
+    const newTrack = { id, title };
+    setActiveTrack(newTrack);
+    broadcastTrack(newTrack);
+    // Persist to Supabase kv_store so any player who joins later gets the same song
+    supabase
+      .from('kv_store_488bc5db')
+      .upsert({ key: `room:${roomId}:track`, value: newTrack })
+      .catch(() => {});
+  };
+
   const [musicStarted, setMusicStarted] = useState(true);
 
   // Audio state
@@ -145,7 +191,7 @@ export function PartyScene({ playerName, roomId }: Props) {
       {/* ── Now Playing banner above stage (always visible) ── */}
       <NowPlayingBanner
         track={activeTrack}
-        onSelectTrack={(id, title) => setActiveTrack({ id, title })}
+        onSelectTrack={handleSelectTrack}
       />
 
       {/* ── HTML overlays ── */}

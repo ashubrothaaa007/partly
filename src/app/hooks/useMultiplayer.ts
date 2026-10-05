@@ -13,7 +13,13 @@ export interface PlayerData {
   rotation?: number;
 }
 
-export function useMultiplayer(playerName: string, playerColor: string, roomId: string, onAnimChange?: (anim: string) => void) {
+export function useMultiplayer(
+  playerName: string,
+  playerColor: string,
+  roomId: string,
+  onAnimChange?: (anim: string) => void,
+  onTrackChange?: (track: { id: string; title: string }) => void
+) {
   const [players, setPlayers] = useState<Record<string, PlayerData>>({});
   const [status, setStatus] = useState<'Disconnected' | 'Connected'>('Disconnected');
   const [socketId, setSocketId] = useState<string>('');
@@ -22,6 +28,11 @@ export function useMultiplayer(playerName: string, playerColor: string, roomId: 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const playerIdRef = useRef(`${playerName}-${Math.random().toString(36).substring(2, 9)}`);
   const isSubscribedRef = useRef(false);
+  const onTrackChangeRef = useRef(onTrackChange);
+
+  useEffect(() => {
+    onTrackChangeRef.current = onTrackChange;
+  }, [onTrackChange]);
   
   const localState = useRef<PlayerData>({
     id: playerIdRef.current,
@@ -90,6 +101,11 @@ export function useMultiplayer(playerName: string, playerColor: string, roomId: 
       .on('broadcast', { event: 'chat' }, ({ payload }) => {
         window.dispatchEvent(new CustomEvent('party-chat', { detail: payload }));
       })
+      .on('broadcast', { event: 'track-change' }, ({ payload }) => {
+        if (payload && payload.id) {
+          onTrackChangeRef.current?.(payload);
+        }
+      })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           isSubscribedRef.current = true;
@@ -148,6 +164,15 @@ export function useMultiplayer(playerName: string, playerColor: string, roomId: 
     window.dispatchEvent(new CustomEvent('party-chat', { detail: payload }));
   };
 
+  const broadcastTrack = (track: { id: string; title: string }) => {
+    if (!channelRef.current || !isSubscribedRef.current) return;
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'track-change',
+      payload: track
+    }).catch(() => {});
+  };
+
   const setAnimation = (anim: string) => {
     localState.current.animation = anim;
     if (onAnimChange) onAnimChange(anim);
@@ -158,6 +183,7 @@ export function useMultiplayer(playerName: string, playerColor: string, roomId: 
     players, 
     broadcastUpdate, 
     broadcastChat, 
+    broadcastTrack,
     updatePosition: broadcastUpdate,
     setAnimation,
     localId: playerIdRef.current,
