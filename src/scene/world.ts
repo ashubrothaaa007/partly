@@ -19,7 +19,7 @@ import {
   createDancePodium,
   createPhotoBooth,
   createSignboard,
-  createStageWisprBanner,
+  createBeachWisprBanner,
   createBeachHackerHouseBanner,
   createBeachShop
 } from './props';
@@ -204,9 +204,6 @@ export function buildScene(scene: THREE.Scene, videoId: string): { uniforms: { t
   const topTruss = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 27, 8), trussMat); topTruss.position.set(0, 18.5, -6); topTruss.rotation.z = Math.PI/2; topTruss.castShadow = true; topTruss.castShadow = true; stageGroup.add(topTruss);
   for(let i=-12; i<=12; i+=2) { const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), new THREE.MeshStandardMaterial({color: 0xffddaa, emissive: 0xffddaa, emissiveIntensity: 1.0})); bulb.position.set(i, 18.3, -5.8); stageGroup.add(bulb); }
 
-  // Wispr Flow Stage Crown Banner mounted majestically at the top of the concert stage
-  stageGroup.add(createStageWisprBanner());
-
   // ── SPEAKERS ──
   const spLeft = createSpeaker(-15, -4);
   const spRight = createSpeaker(15, -4);
@@ -341,7 +338,12 @@ export function buildScene(scene: THREE.Scene, videoId: string): { uniforms: { t
   scene.add(createSignboard(0, -2, 0, "MAIN STAGE")); addBoxCol(0, -2, 4, 0.5);
   scene.add(createSignboard(-25, 10, Math.PI/4, "CHILL ZONE")); addBoxCol(-25, 10, 4, 0.5, Math.PI/4);
 
-  // Beach Marketing Billboard (Hacker House Goa)
+  // Standalone Beach Marketing Billboards
+  // Wispr Flow on elevated ground overlooking the beach (separate from the concert stage)
+  scene.add(createBeachWisprBanner(9.5, 1.5, -Math.PI / 8));
+  addBoxCol(9.5, 1.5, 6.8, 3.2, -Math.PI / 8);
+
+  // Hacker House Goa billboard near chill zone
   scene.add(createBeachHackerHouseBanner(-18, 14, Math.PI / 5));
   addBoxCol(-18, 14, 6.4, 0.8, Math.PI / 5);
 

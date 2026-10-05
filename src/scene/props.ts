@@ -332,49 +332,118 @@ export function createBeachBillboard(
   rotY: number = 0,
   textures: { front: THREE.Texture; back: THREE.Texture },
   bannerW: number = 6.0,
-  bannerH: number = 2.83
+  bannerH: number = 2.83,
+  elevatedElevation: number = 0
 ) {
   const g = new THREE.Group();
   g.position.set(x, 0, z);
   g.rotation.y = rotY;
 
   const { front: texFront, back: texBack } = textures;
-  const bannerCenterY = bannerH / 2 + 1.25;
+  const baseY = elevatedElevation;
+  const bannerCenterY = baseY + bannerH / 2 + 1.25;
 
   const frameMat = new THREE.MeshStandardMaterial({ color: 0x422a14, roughness: 0.85, metalness: 0.1 });
   const postMat = new THREE.MeshStandardMaterial({ color: 0x5a381e, roughness: 0.9, flatShading: true });
   const metalMat = new THREE.MeshStandardMaterial({ color: 0x222225, metalness: 0.8, roughness: 0.3 });
   const glowMat = new THREE.MeshBasicMaterial({ color: 0xfff3d6 });
 
+  // Elevated ground platform (sculpted sandstone dune terrace & steps)
+  if (elevatedElevation > 0) {
+    const duneMat = new THREE.MeshStandardMaterial({ color: 0xdfbe8c, roughness: 0.95, flatShading: true });
+    const woodPlatformMat = new THREE.MeshStandardMaterial({ color: 0x4a2e1b, roughness: 0.8 });
+
+    // Lower natural stone foundation
+    const stoneBase = new THREE.Mesh(new THREE.CylinderGeometry(bannerW * 0.72, bannerW * 0.85, elevatedElevation * 0.6, 16), MAT_ROCK);
+    stoneBase.position.set(0, elevatedElevation * 0.3, 0);
+    stoneBase.receiveShadow = true;
+    stoneBase.castShadow = true;
+    g.add(stoneBase);
+
+    // Upper elevated sandstone dune terrace
+    const terrace = new THREE.Mesh(new THREE.CylinderGeometry(bannerW * 0.62, bannerW * 0.72, elevatedElevation * 0.45, 16), duneMat);
+    terrace.position.set(0, elevatedElevation * 0.8, 0);
+    terrace.receiveShadow = true;
+    terrace.castShadow = true;
+    g.add(terrace);
+
+    // Wooden scenic overlook observation deck
+    const deck = new THREE.Mesh(new THREE.CylinderGeometry(bannerW * 0.58, bannerW * 0.58, 0.15, 16), woodPlatformMat);
+    deck.position.set(0, elevatedElevation + 0.05, 0);
+    deck.receiveShadow = true;
+    deck.castShadow = true;
+    g.add(deck);
+
+    // Stone steps leading up from the front beach sand
+    const numSteps = 4;
+    for (let s = 0; s < numSteps; s++) {
+      const stepY = (s + 0.5) * (elevatedElevation / numSteps);
+      const stepZ = (bannerW * 0.6) - s * 0.45;
+      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(2.4, elevatedElevation / numSteps, 0.5), MAT_ROCK);
+      stepMesh.position.set(0, stepY, stepZ);
+      stepMesh.receiveShadow = true;
+      stepMesh.castShadow = true;
+      g.add(stepMesh);
+    }
+
+    // Natural beach boulders circling the base
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const rx = Math.cos(angle) * (bannerW * 0.82);
+      const rz = Math.sin(angle) * (bannerW * 0.82);
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4 + (i % 3) * 0.15), MAT_ROCK);
+      rock.position.set(rx, 0.25, rz);
+      rock.scale.set(1.3, 0.7, 1.2);
+      rock.castShadow = true;
+      rock.receiveShadow = true;
+      g.add(rock);
+    }
+
+    // Scenic decorative tiki torches on left and right of the terrace
+    [-bannerW * 0.48, bannerW * 0.48].forEach(tx => {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.8, 6), woodPlatformMat);
+      pole.position.set(tx, elevatedElevation + 0.9, 0.8);
+      g.add(pole);
+
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 6), new THREE.MeshBasicMaterial({ color: 0xff7700 }));
+      flame.position.set(tx, elevatedElevation + 1.9, 0.8);
+      g.add(flame);
+
+      const torchLight = new THREE.PointLight(0xff8822, 1.5, 6);
+      torchLight.position.set(tx, elevatedElevation + 1.9, 0.8);
+      g.add(torchLight);
+    });
+  }
+
   // 1. Vertical Timber Main Posts
   const topRailY = bannerCenterY + bannerH / 2 + 0.08;
   const botRailY = bannerCenterY - bannerH / 2 - 0.08;
-  const postHeight = topRailY + 0.35;
+  const postHeight = (bannerCenterY - baseY) + bannerH / 2 + 0.35 + 0.08;
   const postRadius = 0.12;
   const postDist = bannerW / 2 + 0.12;
 
   [-postDist, postDist].forEach(px => {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(postRadius, postRadius * 1.1, postHeight, 10), postMat);
-    post.position.set(px, postHeight / 2, 0);
+    post.position.set(px, baseY + postHeight / 2, 0);
     post.castShadow = true;
     post.receiveShadow = true;
     g.add(post);
 
     // Decorative iron/copper cap on top
     const cap = new THREE.Mesh(new THREE.ConeGeometry(postRadius * 1.4, 0.25, 8), metalMat);
-    cap.position.set(px, postHeight + 0.12, 0);
+    cap.position.set(px, baseY + postHeight + 0.12, 0);
     g.add(cap);
 
-    // Sandstone footings at beach level
+    // Sandstone footings at terrace level
     const footStone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35), MAT_ROCK);
-    footStone.position.set(px, 0.18, 0);
+    footStone.position.set(px, baseY + 0.18, 0);
     footStone.scale.set(1.2, 0.6, 1.2);
     footStone.castShadow = true;
     g.add(footStone);
 
-    // Diagonal rear support strut (anchored into beach sand)
+    // Diagonal rear support strut (anchored into beach sand/terrace)
     const brace = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.8, 8), postMat);
-    brace.position.set(px, 1.2, -1.0);
+    brace.position.set(px, baseY + 1.2, -1.0);
     brace.rotation.x = -Math.PI / 4;
     brace.castShadow = true;
     g.add(brace);
@@ -483,82 +552,8 @@ export function createBeachBillboard(
 }
 
 export function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
-  return createBeachBillboard(x, z, rotY, getWisprBannerTextures(), 6.0, 2.83);
-}
-
-export function createStageWisprBanner() {
-  const g = new THREE.Group();
-  const { front: texFront } = getWisprBannerTextures();
-
-  // Majestic festival crown header banner above the main concert stage
-  // Aspect ratio 1024 x 483 -> 12.0m wide by 5.6m high
-  const bannerW = 12.0;
-  const bannerH = 5.6;
-  const bannerY = 20.6;
-  const bannerZ = -5.8;
-
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0x1a1a24, roughness: 0.6, metalness: 0.8 });
-  const glowBorderMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff });
-
-  // 1. Backing Structure / Mounting Plate
-  const backing = new THREE.Mesh(new THREE.BoxGeometry(bannerW + 0.4, bannerH + 0.4, 0.2), frameMat);
-  backing.position.set(0, bannerY, bannerZ);
-  backing.castShadow = true;
-  g.add(backing);
-
-  // 2. Neon Cyan Glow Outer Frame
-  const topTrim = new THREE.Mesh(new THREE.BoxGeometry(bannerW + 0.6, 0.15, 0.25), glowBorderMat);
-  topTrim.position.set(0, bannerY + bannerH / 2 + 0.1, bannerZ + 0.05);
-  g.add(topTrim);
-
-  const botTrim = new THREE.Mesh(new THREE.BoxGeometry(bannerW + 0.6, 0.15, 0.25), glowBorderMat);
-  botTrim.position.set(0, bannerY - bannerH / 2 - 0.1, bannerZ + 0.05);
-  g.add(botTrim);
-
-  const leftTrim = new THREE.Mesh(new THREE.BoxGeometry(0.15, bannerH + 0.4, 0.25), glowBorderMat);
-  leftTrim.position.set(-bannerW / 2 - 0.15, bannerY, bannerZ + 0.05);
-  g.add(leftTrim);
-
-  const rightTrim = new THREE.Mesh(new THREE.BoxGeometry(0.15, bannerH + 0.4, 0.25), glowBorderMat);
-  rightTrim.position.set(bannerW / 2 + 0.15, bannerY, bannerZ + 0.05);
-  g.add(rightTrim);
-
-  // 3. Front Face Poster Mesh (with subtle self-illumination for concert performances)
-  const posterMat = new THREE.MeshStandardMaterial({
-    map: texFront,
-    roughness: 0.6,
-    metalness: 0.1,
-    emissive: 0xffffff,
-    emissiveMap: texFront,
-    emissiveIntensity: 0.35,
-  });
-  const frontPlane = new THREE.Mesh(new THREE.PlaneGeometry(bannerW, bannerH), posterMat);
-  frontPlane.position.set(0, bannerY, bannerZ + 0.11);
-  g.add(frontPlane);
-
-  // 4. Heavy-duty Stage Rigging Brackets (anchored to the top bamboo truss at y=18.5)
-  [-bannerW * 0.35, 0, bannerW * 0.35].forEach(bx => {
-    const bracket = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 8), frameMat);
-    bracket.position.set(bx, 18.8, bannerZ - 0.1);
-    g.add(bracket);
-  });
-
-  // 5. Overhead Stage Spotlights focused on the header
-  [-bannerW * 0.3, 0, bannerW * 0.3].forEach(sx => {
-    const spot = new THREE.SpotLight(0xfff5e6, 4, 20, Math.PI / 4, 0.5, 1);
-    spot.position.set(sx, bannerY + bannerH / 2 + 1.2, bannerZ + 2.5);
-    spot.target.position.set(sx, bannerY, bannerZ);
-    g.add(spot);
-    g.add(spot.target);
-
-    // Light fixture housing
-    const fixture = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.4, 8), frameMat);
-    fixture.position.set(sx, bannerY + bannerH / 2 + 1.2, bannerZ + 2.5);
-    fixture.rotation.x = -Math.PI / 4;
-    g.add(fixture);
-  });
-
-  return g;
+  // Standalone 3D billboard on elevated ground at the top of the beach (1.5m elevated sandstone dune terrace)
+  return createBeachBillboard(x, z, rotY, getWisprBannerTextures(), 6.0, 2.83, 1.5);
 }
 
 export function createBeachHackerHouseBanner(x: number, z: number, rotY: number = 0) {
