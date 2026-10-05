@@ -17,6 +17,7 @@ export interface ThreeCanvasProps {
   onAnimChange: (a: string) => void;
   onPlayerUpdate?: (pos: [number, number, number], rot: number, anim: string) => void;
   videoId: string;
+  videoTitle?: string;
   screenOverlayRef: MutableRefObject<HTMLDivElement | null>;
   audioEnabled: boolean;
   globalVolume: number;

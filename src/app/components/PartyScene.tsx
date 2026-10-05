@@ -120,29 +120,53 @@ export function PartyScene({ playerName, roomId }: Props) {
   );
   const activePlayers = Object.values(players);
 
-  // Sync current active track from Supabase so all new joins start with the current song
+  // Sync current active track from Supabase so all devices (mobile, desktop, newly joined) stay in sync
   useEffect(() => {
-    supabase
-      .from('kv_store_488bc5db')
-      .select('value')
-      .eq('key', `room:${roomId}:track`)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.value && data.value.id) {
-          setActiveTrack(data.value);
+    let isMounted = true;
+
+    const fetchCurrentTrack = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('kv_store_488bc5db')
+          .select('value')
+          .eq('key', `room:${roomId}:track`)
+          .maybeSingle();
+
+        if (!error && data?.value && data.value.id && isMounted) {
+          setActiveTrack(prev => {
+            if (prev.id !== data.value.id) {
+              toast(`🎵 Now Playing on Stage: ${data.value.title}`, {
+                icon: '🎶',
+                duration: 4500
+              });
+              return data.value;
+            }
+            return prev;
+          });
         }
-      })
-      .catch(() => {});
+      } catch (_) {}
+    };
+
+    fetchCurrentTrack();
+    const interval = setInterval(fetchCurrentTrack, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [roomId]);
 
   const handleSelectTrack = (id: string, title: string) => {
     const newTrack = { id, title };
     setActiveTrack(newTrack);
     broadcastTrack(newTrack);
-    // Persist to Supabase kv_store so any player who joins later gets the same song
+    // Persist to Supabase kv_store so all devices polling or joining later receive it
     supabase
       .from('kv_store_488bc5db')
       .upsert({ key: `room:${roomId}:track`, value: newTrack })
+      .then(() => {
+        toast.success(`Broadcasting "${title}" to all devices!`);
+      })
       .catch(() => {});
   };
 
@@ -180,6 +204,7 @@ export function PartyScene({ playerName, roomId }: Props) {
           broadcastUpdate({ pos, targetPos: pos, rotation: rot, animation: anim });
         }}
         videoId={activeTrack.id}
+        videoTitle={activeTrack.title}
         screenOverlayRef={screenOverlayRef}
         audioEnabled={audioEnabled}
         globalVolume={globalVolume}
@@ -283,6 +308,14 @@ export function PartyScene({ playerName, roomId }: Props) {
   );
 }
 
+// ── Curated party playlist for instant 1-click stage changes ──
+const PRESET_TRACKS = [
+  { id: '0sCaK_7cDO0', title: 'Wispr Flow takes on India', emoji: '🌴' },
+  { id: '60ItHLz5WEA', title: 'Alan Walker - Faded (Live)', emoji: '⚡' },
+  { id: 'UtF6Jej8yb4', title: 'Avicii - The Nights', emoji: '✨' },
+  { id: '5qap5aO4i9A', title: 'Beach Chill Lofi Beats', emoji: '🏖️' },
+];
+
 // ── Now Playing banner ──
 function NowPlayingBanner({
   track,
@@ -293,32 +326,23 @@ function NowPlayingBanner({
 }) {
   const [showInput, setShowInput] = useState(false);
   const [inputVal, setInputVal] = useState('');
-  const [passwordVal, setPasswordVal] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
+  const [titleVal, setTitleVal] = useState('');
 
-  const handleApplyCustomVideo = async (e: React.FormEvent) => {
+  const handleApplyCustomVideo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputVal.trim()) return;
 
-    const hash = await sha256(passwordVal.trim());
-    if (hash !== STAGE_CHANGE_HASH) {
-      setPasswordError(true);
-      toast.error('Incorrect password! Enter password to change video.');
-      return;
-    }
-
     const vId = extractYouTubeId(inputVal);
     if (!vId) {
-      toast.error('Invalid YouTube link or ID. Must be a valid 11-character YouTube video.');
+      toast.error('Please enter a valid YouTube URL or 11-character video ID.');
       return;
     }
 
-    setPasswordError(false);
-    onSelectTrack(vId, vId === '0sCaK_7cDO0' ? 'Wispr Flow takes on India' : `Custom Video (${vId})`);
+    const cleanTitle = titleVal.trim() || (vId === '0sCaK_7cDO0' ? 'Wispr Flow takes on India' : `Custom Track (${vId})`);
+    onSelectTrack(vId, cleanTitle);
     setShowInput(false);
     setInputVal('');
-    setPasswordVal('');
-    toast.success('Concert stage video updated!');
+    setTitleVal('');
   };
 
   return (
@@ -335,39 +359,39 @@ function NowPlayingBanner({
       fontFamily: "'Rajdhani', sans-serif",
     }}>
       <div style={{
-        background: 'rgba(12, 12, 18, 0.72)',
-        backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
+        background: 'rgba(12, 12, 18, 0.85)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(0, 234, 255, 0.3)',
         borderRadius: '20px',
-        padding: '5px 10px 5px 12px',
+        padding: '5px 12px',
         display: 'flex',
         alignItems: 'center',
         gap: '8px',
-        boxShadow: '0 4px 18px rgba(0, 0, 0, 0.35)',
+        boxShadow: '0 4px 20px rgba(0, 234, 255, 0.25)',
       }}>
-        {/* Subtle Live Dot */}
+        {/* Glowing Live Dot */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '5px',
           fontSize: '9px',
           fontWeight: 700,
-          color: 'rgba(255, 255, 255, 0.6)',
+          color: '#00eaff',
           letterSpacing: '0.12em',
           fontFamily: "'Orbitron', monospace",
         }}>
           <span style={{
-            width: '5px',
-            height: '5px',
+            width: '6px',
+            height: '6px',
             borderRadius: '50%',
             background: '#ff2a5f',
-            boxShadow: '0 0 6px #ff2a5f',
+            boxShadow: '0 0 8px #ff2a5f',
             animation: 'pulse 1.8s infinite'
           }} />
-          STAGE
+          LIVE STAGE
         </div>
 
-        <span style={{ color: 'rgba(255, 255, 255, 0.18)', fontSize: '10px' }}>•</span>
+        <span style={{ color: 'rgba(255, 255, 255, 0.3)', fontSize: '10px' }}>•</span>
 
         {/* Track Title */}
         <div style={{
@@ -375,30 +399,28 @@ function NowPlayingBanner({
           color: '#ffffff',
           fontWeight: 600,
           letterSpacing: '0.03em',
-          maxWidth: '240px',
+          maxWidth: '220px',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
+          textShadow: '0 0 8px rgba(0, 234, 255, 0.5)',
         }}>
           {track.title}
         </div>
 
         {/* Minimalist Button */}
         <button
-          onClick={() => {
-            setShowInput(s => !s);
-            setPasswordError(false);
-          }}
-          title={showInput ? "Close" : "Change Video"}
+          onClick={() => setShowInput(s => !s)}
+          title={showInput ? "Close" : "Change Video for Everyone"}
           style={{
-            background: showInput ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.06)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            color: showInput ? '#ffffff' : 'rgba(255, 255, 255, 0.75)',
+            background: showInput ? 'rgba(255, 42, 95, 0.25)' : 'rgba(0, 234, 255, 0.15)',
+            border: showInput ? '1px solid #ff2a5f' : '1px solid rgba(0, 234, 255, 0.4)',
+            color: showInput ? '#ff6b8b' : '#00eaff',
             fontSize: '10px',
             fontFamily: "'Orbitron', monospace",
-            fontWeight: 600,
+            fontWeight: 700,
             letterSpacing: '0.06em',
-            padding: '3px 8px',
+            padding: '3px 9px',
             borderRadius: '6px',
             cursor: 'pointer',
             display: 'flex',
@@ -407,25 +429,19 @@ function NowPlayingBanner({
             transition: 'all 0.15s ease',
           }}
           onMouseEnter={e => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
-            e.currentTarget.style.color = '#ffffff';
-            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+            e.currentTarget.style.background = showInput ? 'rgba(255, 42, 95, 0.4)' : 'rgba(0, 234, 255, 0.3)';
+            e.currentTarget.style.transform = 'scale(1.05)';
           }}
           onMouseLeave={e => {
-            e.currentTarget.style.background = showInput ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.06)';
-            e.currentTarget.style.color = showInput ? '#ffffff' : 'rgba(255, 255, 255, 0.75)';
-            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.12)';
+            e.currentTarget.style.background = showInput ? 'rgba(255, 42, 95, 0.25)' : 'rgba(0, 234, 255, 0.15)';
+            e.currentTarget.style.transform = 'scale(1)';
           }}
         >
           {showInput ? (
-            <span style={{ fontSize: '11px', lineHeight: 1 }}>✕</span>
+            <span style={{ fontSize: '11px', lineHeight: 1 }}>✕ CLOSE</span>
           ) : (
             <>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.85 }}>
-                <path d="M12 20h9"/>
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-              </svg>
-              <span>CHANGE</span>
+              <span>♫ CHANGE SONG</span>
             </>
           )}
         </button>
@@ -434,33 +450,111 @@ function NowPlayingBanner({
       {/* Video switcher dropdown */}
       {showInput && (
         <div style={{
-          background: 'rgba(12, 12, 18, 0.95)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: '10px',
-          padding: '12px 14px',
+          background: 'rgba(10, 12, 20, 0.95)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(0, 234, 255, 0.3)',
+          borderRadius: '12px',
+          padding: '14px 16px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
-          boxShadow: '0 12px 30px rgba(0, 0, 0, 0.7)',
-          width: '320px',
+          gap: '10px',
+          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 234, 255, 0.15)',
+          width: '330px',
         }}>
-          <div style={{ fontSize: '9px', color: 'rgba(255, 255, 255, 0.6)', letterSpacing: '0.08em', fontFamily: "'Orbitron', monospace" }}>
-            CHANGE STAGE VIDEO (PASSWORD PROTECTED)
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '10px', color: '#00eaff', letterSpacing: '0.1em', fontFamily: "'Orbitron', monospace", fontWeight: 700 }}>
+              CHANGE STAGE SONG (ALL DEVICES)
+            </span>
+            <span style={{ fontSize: '9px', color: '#00ff88', fontFamily: "'Orbitron', monospace" }}>
+              ● REALTIME SYNC
+            </span>
           </div>
 
+          {/* 1-Click Preset Track Buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Instant Quick Select:
+            </div>
+            {PRESET_TRACKS.map(preset => (
+              <button
+                key={preset.id}
+                onClick={() => {
+                  onSelectTrack(preset.id, preset.title);
+                  setShowInput(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: track.id === preset.id ? 'rgba(0, 234, 255, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                  border: track.id === preset.id ? '1px solid #00eaff' : '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  color: track.id === preset.id ? '#00eaff' : '#ffffff',
+                  fontSize: '11px',
+                  fontFamily: "'Rajdhani', sans-serif",
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(0, 234, 255, 0.25)';
+                  e.currentTarget.style.borderColor = '#00eaff';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = track.id === preset.id ? 'rgba(0, 234, 255, 0.2)' : 'rgba(255, 255, 255, 0.04)';
+                  e.currentTarget.style.borderColor = track.id === preset.id ? '#00eaff' : 'rgba(255, 255, 255, 0.08)';
+                }}
+              >
+                <span>{preset.emoji}</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {preset.title}
+                </span>
+                {track.id === preset.id && (
+                  <span style={{ fontSize: '9px', color: '#00ff88', fontFamily: "'Orbitron', monospace" }}>PLAYING</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '2px 0' }} />
+
+          {/* Custom YouTube URL Form */}
           <form onSubmit={handleApplyCustomVideo} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Or Enter Any YouTube Video Link:
+            </div>
             <input
               type="text"
               value={inputVal}
               onChange={e => setInputVal(e.target.value)}
-              placeholder="YouTube URL or Video ID"
+              placeholder="Paste YouTube Link or Video ID"
+              style={{
+                width: '100%',
+                padding: '7px 10px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '6px',
+                color: '#fff',
+                fontSize: '12px',
+                fontFamily: "'Rajdhani', sans-serif",
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+
+            <input
+              type="text"
+              value={titleVal}
+              onChange={e => setTitleVal(e.target.value)}
+              placeholder="Track Title (optional)"
               style={{
                 width: '100%',
                 padding: '6px 10px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                borderRadius: '5px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '6px',
                 color: '#fff',
                 fontSize: '11px',
                 fontFamily: "'Rajdhani', sans-serif",
@@ -469,109 +563,35 @@ function NowPlayingBanner({
               }}
             />
 
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input
-                type="password"
-                value={passwordVal}
-                onChange={e => {
-                  setPasswordVal(e.target.value);
-                  setPasswordError(false);
-                }}
-                placeholder="Enter password"
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: passwordError ? '1px solid #ff3366' : '1px solid rgba(255, 255, 255, 0.12)',
-                  borderRadius: '5px',
-                  color: '#fff',
-                  fontSize: '11px',
-                  fontFamily: "'Rajdhani', sans-serif",
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-              <button
-                type="submit"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.15)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  color: '#fff',
-                  fontWeight: 700,
-                  fontSize: '10px',
-                  fontFamily: "'Orbitron', monospace",
-                  padding: '0 14px',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  whiteSpace: 'nowrap',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = '#ffffff';
-                  e.currentTarget.style.color = '#000000';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
-                  e.currentTarget.style.color = '#ffffff';
-                }}
-              >
-                PLAY
-              </button>
-            </div>
-
-            {passwordError && (
-              <div style={{
-                color: '#ff4466',
-                fontSize: '10px',
-                fontFamily: "'Rajdhani', sans-serif",
-                fontWeight: 600,
-                letterSpacing: '0.04em',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}>
-                ✕ Incorrect password. Required to change video.
-              </div>
-            )}
+            <button
+              type="submit"
+              style={{
+                background: 'linear-gradient(135deg, #00d4ff, #0077ff)',
+                border: 'none',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '11px',
+                fontFamily: "'Orbitron', monospace",
+                letterSpacing: '0.08em',
+                padding: '8px 14px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                boxShadow: '0 4px 15px rgba(0, 212, 255, 0.4)',
+                textAlign: 'center',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 212, 255, 0.6)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 212, 255, 0.4)';
+              }}
+            >
+              ▶ PLAY ON STAGE FOR ALL PLAYERS
+            </button>
           </form>
-
-          {/* Quick Reset to Default Video */}
-          {track.id !== '0sCaK_7cDO0' && (
-            <div style={{ marginTop: '2px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '6px' }}>
-              <button
-                onClick={() => {
-                  onSelectTrack('0sCaK_7cDO0', 'Wispr Flow takes on India');
-                  setShowInput(false);
-                  setPasswordError(false);
-                  setPasswordVal('');
-                  toast.success('Reset to Wispr Flow takes on India!');
-                }}
-                style={{
-                  width: '100%',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '4px',
-                  color: '#00eaff',
-                  fontSize: '9px',
-                  fontFamily: "'Orbitron', monospace",
-                  padding: '6px 8px',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  textAlign: 'center',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(0, 234, 255, 0.15)';
-                  e.currentTarget.style.borderColor = '#00eaff';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                }}
-              >
-                ⟲ RESET TO WISPR FLOW TAKES ON INDIA
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

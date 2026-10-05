@@ -14,7 +14,7 @@ import { buildScene } from '../../scene/world';
 export type { ThreeCanvasProps };
 export type Props = ThreeCanvasProps;
 
-export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, onPlayerUpdate, videoId, screenOverlayRef, audioEnabled, globalVolume, isMuted }: Props) {
+export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, onPlayerUpdate, videoId, videoTitle, screenOverlayRef, audioEnabled, globalVolume, isMuted }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onAnimRef = useRef(onAnimChange);
@@ -27,6 +27,7 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
 
   useEffect(() => { onPlayerUpdateRef.current = onPlayerUpdate; }, [onPlayerUpdate]);
   const videoIdRef = useRef(videoId);
+  const videoTitleRef = useRef(videoTitle || 'Wispr Flow');
   const lastVolumeRef = useRef<number>(-1);
   const wasAudioEnabledRef = useRef<boolean>(false);
   const hasInteractedWithVideoRef = useRef<boolean>(false);
@@ -37,11 +38,14 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
   const lastMouse = useRef({ x: 0, y: 0 });
 
   useEffect(() => { onAnimRef.current = onAnimChange; }, [onAnimChange]);
+  useEffect(() => {
+    videoTitleRef.current = videoTitle || 'Wispr Flow';
+  }, [videoTitle]);
+
   useEffect(() => { 
     if (videoIdRef.current !== videoId) {
       videoIdRef.current = videoId;
-      wasAudioEnabledRef.current = false; // Reset to ensure new iframe gets unmuted
-      hasInteractedWithVideoRef.current = false; // Reset interaction flag for new video
+      wasAudioEnabledRef.current = false;
       lastVolumeRef.current = -1; // Force volume update
       lastVolumeUpdateRef.current = 0; // Reset throttler
     }
@@ -250,13 +254,16 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
       sc.save();
       sc.fillStyle = 'rgba(255,255,255,0.08)';
       sc.beginPath();
-      sc.roundRect(185, 162, 270, 22, 11);
+      sc.roundRect(80, 162, 480, 26, 11);
       sc.fill();
       sc.textAlign = 'center';
-      sc.font = '11px monospace';
-      sc.fillStyle = 'rgba(255,255,255,0.5)';
-      sc.shadowBlur = 0;
-      sc.fillText(`youtu.be/${videoIdRef.current}`, 320, 177);
+      sc.font = 'bold 12px Orbitron, monospace';
+      sc.fillStyle = '#00eaff';
+      sc.shadowBlur = 8;
+      sc.shadowColor = '#00eaff';
+      const cleanTitle = (videoTitleRef.current || `youtu.be/${videoIdRef.current}`).trim();
+      const displayTitle = cleanTitle.length > 36 ? cleanTitle.substring(0, 36) + '...' : cleanTitle;
+      sc.fillText(displayTitle.toUpperCase(), 320, 179);
       sc.restore();
 
       sc.save();
@@ -951,9 +958,31 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
       const originParam = typeof window !== 'undefined' ? `&origin=${encodeURIComponent(window.location.origin)}` : '';
       const safeVideoId = encodeURIComponent(videoId.replace(/[^a-zA-Z0-9_-]/g, ''));
       const startSec = getSyncedStartSeconds(safeVideoId);
-      iframe.src = `https://www.youtube.com/embed/${safeVideoId}?autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&enablejsapi=1&iv_load_policy=3&showinfo=0&disablekb=1&loop=1&playlist=${safeVideoId}&vq=medium&start=${startSec}${originParam}`;
+      const muteParam = hasInteractedWithVideoRef.current && audioEnabled && !isMuted ? '0' : '1';
+      iframe.src = `https://www.youtube.com/embed/${safeVideoId}?autoplay=1&mute=${muteParam}&controls=0&rel=0&modestbranding=1&enablejsapi=1&iv_load_policy=3&showinfo=0&disablekb=1&loop=1&playlist=${safeVideoId}&vq=medium&start=${startSec}${originParam}`;
+
+      // Automatically un-mute and play new track if user is already in audio mode
+      const sendPlayCommands = () => {
+        if (!iframe.contentWindow) return;
+        const volume = Math.round(globalVolume * 100);
+        if (audioEnabled && !isMuted) {
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [volume] }), '*');
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
+        }
+      };
+
+      const t1 = setTimeout(sendPlayCommands, 500);
+      const t2 = setTimeout(sendPlayCommands, 1200);
+      const t3 = setTimeout(sendPlayCommands, 2400);
+
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
     }
-  }, [videoId]);
+  }, [videoId, audioEnabled, globalVolume, isMuted]);
 
   // Sync volume and mute state from the React HUD/audio props to the iframe
   useEffect(() => {
@@ -962,7 +991,6 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
       const volume = Math.round(globalVolume * 100);
       const isActuallyMuted = isMuted || !audioEnabled;
       
-      // We must wait a tiny bit for the iframe JS API to initialize after load/mount
       const sendVolumeCommands = () => {
         if (isActuallyMuted) {
           iframe.contentWindow?.postMessage(JSON.stringify({
@@ -990,7 +1018,6 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
       };
       
       sendVolumeCommands();
-      // Retry in 1.5 seconds just in case the iframe was still initializing on first mount
       const timer = setTimeout(sendVolumeCommands, 1500);
       return () => clearTimeout(timer);
     }
