@@ -1,9 +1,5 @@
-import { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, memo } from 'react';
 import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 
 import type { ThreeCanvasProps } from '../../scene/types';
@@ -14,7 +10,7 @@ import { buildScene } from '../../scene/world';
 export type { ThreeCanvasProps };
 export type Props = ThreeCanvasProps;
 
-export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, onPlayerUpdate, videoId, videoTitle, screenOverlayRef, audioEnabled, globalVolume, isMuted }: Props) {
+export const ThreeCanvas = memo(function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, onPlayerUpdate, videoId, videoTitle, screenOverlayRef, audioEnabled, globalVolume, isMuted }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onAnimRef = useRef(onAnimChange);
@@ -22,6 +18,7 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
   const lastUpdateRef = useRef<number>(0);
 
   const [showInteract, setShowInteract] = useState(false);
+  const showInteractRef = useRef(false);
   const activeSeatRef = useRef<{ pos: THREE.Vector3, obj?: any } | null>(null);
   const isSeatedRef = useRef(false);
 
@@ -57,9 +54,15 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
     const w = container.clientWidth || container.offsetWidth || 800;
     const h = container.clientHeight || container.offsetHeight || 600;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true,
+      powerPreference: 'high-performance'
+    });
     renderer.setClearColor(0x000000, 0);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Cap pixel ratio to 1.5 to eliminate 4K GPU fillrate bottlenecks
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(w, h, false);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
@@ -81,24 +84,14 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
     const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 250);
     camera.position.set(0, 5, 16);
 
-    const renderScene = new RenderPass(scene, camera);
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.25, 0.1, 0.85); // Slightly stronger bloom for lights
-    const outputPass = new OutputPass();
-
-    const composer = new EffectComposer(renderer);
-    composer.addPass(renderScene);
-    composer.addPass(bloomPass);
-    composer.addPass(outputPass);
-
     const { uniforms, danceTiles, particles, woofers, birds, shark, fishes, boat, lasers, npcs, seats, bonfire, checkCol } = buildScene(scene, videoId);
 
     // ---- RAVE / FESTIVAL LIGHTING SETUP ----
-    const raveColors = [0xff2bd6, 0x00eaff, 0xaa44ff, 0xffffff, 0x00ffff, 0xff66aa];
+    // 2 vibrant dynamic floodlights on dance floor (much lighter than 6 separate lights)
+    const raveColors = [0xff2bd6, 0x00eaff];
     const raveLights = raveColors.map((color, i) => {
-      // These act as strong floodlights lighting up the players on the dance floor
-      const l = new THREE.PointLight(color, 25, 30);
-      l.castShadow = false; // Cast shadows disabled for performance (36 extra renders/frame)
-      // l.shadow.bias = -0.001;
+      const l = new THREE.PointLight(color, 14, 32);
+      l.castShadow = false;
       const phase = (i / raveColors.length) * Math.PI * 2;
       l.position.set(Math.sin(phase) * 14, 4, -18 + Math.cos(phase) * 7);
       scene.add(l);
@@ -118,10 +111,13 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
     const beamXs = [-11, -8, -5, -2, 2, 5, 8, 11];
     const beams = beamDefs.map((def, i) => {
       const b = createBeamLight(def.color);
-      b.group.position.set(beamXs[i], 18.2, -34); // Mounted to the top truss at Y=18.2, Z=-34 (above the screen)
+      b.group.position.set(beamXs[i], 18.2, -34);
       scene.add(b.group);
-      scene.add(b.light);
-      return { ...b, ...def };
+      // Only attach 2 key lights to avoid exceeding forward shader light limits
+      if (i === 1 || i === 6) {
+        scene.add(b.light);
+      }
+      return { ...b, ...def, hasLight: i === 1 || i === 6 };
     });
 
     const { group: playerGroup, parts: playerParts } = createAvatarGroup(playerColor, hashStr(playerName));
@@ -191,7 +187,6 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
       const nw = container.clientWidth, nh = container.clientHeight;
       renderer.setSize(nw, nh, false);
       cssRenderer.setSize(nw, nh);
-      composer.setSize(nw, nh);
       camera.aspect = nw / nh;
       camera.updateProjectionMatrix();
     };
@@ -331,11 +326,13 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
     };
     let animId: number;
     let lastDraw = 0;
+    let frameCount = 0;
     const CAM_DIST = 11;
     const stageFocus = new THREE.Vector3(0, 5, -28);
 
     const animate = (timestamp?: number) => {
       animId = requestAnimationFrame(animate);
+      frameCount++;
       const now = timestamp ?? performance.now();
       const delta = Math.min((now - prevFrameTime) / 1000, 0.05);
       prevFrameTime = now;
@@ -349,7 +346,7 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
       let distVol = 1.0;
       const refDist = 18; // Full volume within 18 units
       
-      // ── Check Seats ──
+      // ── Check Seats (Throttled state update to avoid React re-render spikes) ──
       if (!isSeatedRef.current) {
         let nearestSeat = null;
         let minDist = Infinity;
@@ -361,9 +358,16 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
            }
         });
         activeSeatRef.current = nearestSeat;
-        setShowInteract(nearestSeat !== null);
+        const shouldShow = nearestSeat !== null;
+        if (showInteractRef.current !== shouldShow) {
+          showInteractRef.current = shouldShow;
+          setShowInteract(shouldShow);
+        }
       } else {
-        setShowInteract(false);
+        if (showInteractRef.current) {
+          showInteractRef.current = false;
+          setShowInteract(false);
+        }
       }
       const maxDist = 65; // Volume drops off to near zero around 65 units
       if (dist > refDist) {
@@ -598,15 +602,16 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
         w.emissive.setHSL(0.8, 1, 0.5 + beat * 0.3);
       });
 
-      beams.forEach(({ beamGroup, light, phase, speed, color }, i) => {
+      beams.forEach(({ beamGroup, light, phase, speed, color, hasLight }, i) => {
         const bt = t * speed + phase;
         beamGroup.rotation.z = Math.sin(bt) * 0.85;
         beamGroup.rotation.x = Math.sin(bt * 0.7) * 0.35 + 0.15;
-        const cosZ = Math.cos(beamGroup.rotation.z);
-        const sinZ = Math.sin(beamGroup.rotation.z);
-        // Position PointLight scan target to strictly oscillate on the dance floor (Z between -7 and -23) projecting from Y=18.2
-        light.position.set(beamXs[i] + sinZ * 16.2, 18.2 - cosZ * 16.2, -15 + Math.sin(bt * 0.7) * 8);
-        light.intensity = 6 + beat * 8;
+        if (hasLight) {
+          const cosZ = Math.cos(beamGroup.rotation.z);
+          const sinZ = Math.sin(beamGroup.rotation.z);
+          light.position.set(beamXs[i] + sinZ * 16.2, 18.2 - cosZ * 16.2, -15 + Math.sin(bt * 0.7) * 8);
+          light.intensity = 6 + beat * 8;
+        }
         const inner = beamGroup.children[1] as THREE.Mesh;
         const outer = beamGroup.children[0] as THREE.Mesh;
         (inner.material as THREE.MeshBasicMaterial).opacity = 0.15 + beat * 0.15;
@@ -621,18 +626,21 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
         m.emissiveIntensity = 0.6 + beat * 1.0;
       });
 
-      const pPositions = particles.geometry.attributes.position.array as Float32Array;
-      for(let i=0; i<600; i++) {
-        pPositions[i*3+1] += delta * (0.5 + Math.random() * 0.5); // float up
-        pPositions[i*3] += Math.sin(t + i) * delta * 0.4; // swirl x
-        pPositions[i*3+2] += Math.cos(t + i) * delta * 0.4; // swirl z
-        if (pPositions[i*3+1] > 15) {
-          pPositions[i*3+1] = 0; // Reset to ground
-          pPositions[i*3] = (Math.random() - 0.5) * 40;
-          pPositions[i*3+2] = -28 + (Math.random() - 0.5) * 30;
+      // Update particles every 2nd frame to eliminate CPU-to-GPU buffer bus stalls
+      if (frameCount % 2 === 0) {
+        const pPositions = particles.geometry.attributes.position.array as Float32Array;
+        for(let i=0; i<600; i++) {
+          pPositions[i*3+1] += delta * 1.2;
+          pPositions[i*3] += Math.sin(t + i) * delta * 0.4;
+          pPositions[i*3+2] += Math.cos(t + i) * delta * 0.4;
+          if (pPositions[i*3+1] > 15) {
+            pPositions[i*3+1] = 0;
+            pPositions[i*3] = (Math.random() - 0.5) * 40;
+            pPositions[i*3+2] = -28 + (Math.random() - 0.5) * 30;
+          }
         }
+        particles.geometry.attributes.position.needsUpdate = true;
       }
-      particles.geometry.attributes.position.needsUpdate = true;
       // --------------------------------
 
       // --- ANIMATE NEW ENTITIES ---
@@ -785,34 +793,24 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
           if (npc.anim === 'walk') {
             const dx = npc.target.x - npc.group.position.x;
             const dz = npc.target.z - npc.group.position.z;
-            const dist = Math.sqrt(dx * dx + dz * dz);
-            
-            // Simple collision avoidance against other NPCs (repulsion)
-            let repX = 0, repZ = 0;
-            npcs.forEach(other => {
-              if (other === npc) return;
-              const ox = npc.group.position.x - other.group.position.x;
-              const oz = npc.group.position.z - other.group.position.z;
-              const odist = Math.sqrt(ox*ox + oz*oz);
-              if (odist > 0 && odist < 2.0) {
-                repX += (ox/odist) * (2.0 - odist);
-                repZ += (oz/odist) * (2.0 - odist);
-              }
-            });
+            const distSq = dx * dx + dz * dz;
 
-            // Avoid player
+            // Fast player repulsion without nested O(N^2) loops
+            let repX = 0, repZ = 0;
             const px = npc.group.position.x - playerPos.x;
             const pz = npc.group.position.z - playerPos.z;
-            const pdist = Math.sqrt(px*px + pz*pz);
-            if (pdist > 0 && pdist < 2.5) {
-              repX += (px/pdist) * (2.5 - pdist);
-              repZ += (pz/pdist) * (2.5 - pdist);
+            const pdistSq = px * px + pz * pz;
+            if (pdistSq > 0 && pdistSq < 6.25) {
+              const pdist = Math.sqrt(pdistSq);
+              repX += (px / pdist) * (2.5 - pdist);
+              repZ += (pz / pdist) * (2.5 - pdist);
             }
 
-            if (dist > 0.5) {
+            if (distSq > 0.25) {
+              const dist = Math.sqrt(distSq);
               const moveX = (dx / dist) + repX * 2;
               const moveZ = (dz / dist) + repZ * 2;
-              const mLen = Math.sqrt(moveX*moveX + moveZ*moveZ);
+              const mLen = Math.sqrt(moveX * moveX + moveZ * moveZ);
               if (mLen > 0) {
                  const nx = npc.group.position.x + (moveX / mLen) * 2.5 * delta;
                  const nz = npc.group.position.z + (moveZ / mLen) * 2.5 * delta;
@@ -833,7 +831,12 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
             }
           }
         }
-        animateAvatar(npc.parts, npc.anim, t, npc.seed);
+
+        // Distance culling: only animate full avatar bone hierarchies if within 50 units
+        const distToCam = camera.position.distanceTo(npc.group.position);
+        if (distToCam < 52) {
+          animateAvatar(npc.parts, npc.anim, t, npc.seed);
+        }
       });
       // --------------------------------
 
@@ -1038,4 +1041,4 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
       )}
     </div>
   );
-}
+});

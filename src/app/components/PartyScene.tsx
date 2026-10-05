@@ -140,7 +140,7 @@ export function PartyScene({ playerName, roomId }: Props) {
     };
 
     fetchCurrentTrack();
-    const interval = setInterval(fetchCurrentTrack, 2000);
+    const interval = setInterval(fetchCurrentTrack, 4000);
 
     return () => {
       isMounted = false;
@@ -148,7 +148,7 @@ export function PartyScene({ playerName, roomId }: Props) {
     };
   }, [roomId]);
 
-  const handleSelectTrack = (id: string, title: string) => {
+  const handleSelectTrack = useCallback((id: string, title: string) => {
     const newTrack = { id, title };
     setActiveTrack(newTrack);
     broadcastTrack(newTrack);
@@ -160,7 +160,7 @@ export function PartyScene({ playerName, roomId }: Props) {
         toast.success(`Broadcasting "${title}" to all devices!`);
       })
       .catch(() => {});
-  };
+  }, [broadcastTrack, roomId]);
 
   const [musicStarted, setMusicStarted] = useState(true);
 
@@ -181,7 +181,15 @@ export function PartyScene({ playerName, roomId }: Props) {
 
   useEffect(() => { playersRef.current = activePlayers; }, [activePlayers]);
 
-  const playerList = activePlayers.map(p => ({ name: p.name, color: p.color, animation: p.animation }));
+  const handleAnimChange = useCallback((anim: string) => {
+    setPlayerAnimation(anim);
+  }, []);
+
+  const handlePlayerUpdate = useCallback((pos: [number, number, number], rot: number, anim: string) => {
+    broadcastUpdate({ pos, targetPos: pos, rotation: rot, animation: anim });
+  }, [broadcastUpdate]);
+
+  const playerList = useMemo(() => activePlayers.map(p => ({ name: p.name, color: p.color, animation: p.animation })), [activePlayers]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: '#87ceeb', overflow: 'hidden' }}>
@@ -191,10 +199,8 @@ export function PartyScene({ playerName, roomId }: Props) {
         playerName={playerName}
         playerColor={playerColor}
         botsRef={playersRef}
-        onAnimChange={setPlayerAnimation}
-        onPlayerUpdate={(pos, rot, anim) => {
-          broadcastUpdate({ pos, targetPos: pos, rotation: rot, animation: anim });
-        }}
+        onAnimChange={handleAnimChange}
+        onPlayerUpdate={handlePlayerUpdate}
         videoId={activeTrack.id}
         videoTitle={activeTrack.title}
         screenOverlayRef={screenOverlayRef}
