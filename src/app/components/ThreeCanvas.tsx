@@ -8,7 +8,7 @@ import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRe
 
 import type { ThreeCanvasProps } from '../../scene/types';
 import { createAvatarGroup, animateAvatar, createLabel, hashStr } from '../../scene/avatars';
-import { createBeamLight, SLOT_MS, VIDEO_DURATIONS, getSyncedStartSeconds } from '../../scene/stage';
+import { createBeamLight, getSyncedStartSeconds } from '../../scene/stage';
 import { buildScene } from '../../scene/world';
 
 export type { ThreeCanvasProps };
@@ -314,7 +314,14 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
     const tempBotTarget = new THREE.Vector3();
     const tempBotDiff = new THREE.Vector3();
     
-    const timer = new Timer();
+    // Simple inline clock (replaces the missing three/addons Timer import)
+    const clockStart = performance.now();
+    let prevFrameTime = clockStart;
+    const timer = {
+      update: (_ts?: number) => {},  // no-op; delta computed in animate()
+      getDelta: () => 0,             // placeholder; overridden per frame below
+      getElapsed: () => (performance.now() - clockStart) / 1000,
+    };
     let animId: number;
     let lastDraw = 0;
     const CAM_DIST = 11;
@@ -322,8 +329,9 @@ export function ThreeCanvas({ playerName, playerColor, botsRef, onAnimChange, on
 
     const animate = (timestamp?: number) => {
       animId = requestAnimationFrame(animate);
-      timer.update(timestamp);
-      const delta = Math.min(timer.getDelta(), 0.05);
+      const now = timestamp ?? performance.now();
+      const delta = Math.min((now - prevFrameTime) / 1000, 0.05);
+      prevFrameTime = now;
       const t = timer.getElapsed();
       const beat = (Math.sin(t * 4) * 0.5 + 0.5);
       
