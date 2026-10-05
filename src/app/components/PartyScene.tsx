@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { ThreeCanvas } from './ThreeCanvas';
 import { ChatPanel } from './ChatPanel';
 import { HUD } from './HUD';
-import { useMultiplayer, PlayerData } from './useMultiplayer';
+import { useMultiplayer, PlayerData } from '../hooks/useMultiplayer';
 import { supabase } from '../../utils/supabaseClient';
 
 interface Props {
