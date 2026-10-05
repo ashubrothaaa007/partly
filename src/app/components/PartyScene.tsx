@@ -16,14 +16,6 @@ const PLAYLIST = [
   { id: '0sCaK_7cDO0', title: 'Wispr Flow takes on India' }
 ];
 
-// Cryptographic SHA-256 hash of stage password ('wisprflowmani')
-// Plaintext password is never stored or transmitted in the codebase
-const STAGE_CHANGE_HASH = (import.meta.env.VITE_STAGE_PASSWORD_HASH as string) || '950c631063f2673b461431dfabcb7419a78f91be100024974bc5c5a01e378ec6';
-
-async function sha256(str: string): Promise<string> {
-  const buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 function extractYouTubeId(urlOrId: string): string | null {
   const clean = urlOrId.trim();
