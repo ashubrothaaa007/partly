@@ -486,6 +486,81 @@ export function createBeachWisprBanner(x: number, z: number, rotY: number = 0) {
   return createBeachBillboard(x, z, rotY, getWisprBannerTextures(), 6.0, 2.83);
 }
 
+export function createStageWisprBanner() {
+  const g = new THREE.Group();
+  const { front: texFront } = getWisprBannerTextures();
+
+  // Majestic festival crown header banner above the main concert stage
+  // Aspect ratio 1024 x 483 -> 12.0m wide by 5.6m high
+  const bannerW = 12.0;
+  const bannerH = 5.6;
+  const bannerY = 20.6;
+  const bannerZ = -5.8;
+
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x1a1a24, roughness: 0.6, metalness: 0.8 });
+  const glowBorderMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff });
+
+  // 1. Backing Structure / Mounting Plate
+  const backing = new THREE.Mesh(new THREE.BoxGeometry(bannerW + 0.4, bannerH + 0.4, 0.2), frameMat);
+  backing.position.set(0, bannerY, bannerZ);
+  backing.castShadow = true;
+  g.add(backing);
+
+  // 2. Neon Cyan Glow Outer Frame
+  const topTrim = new THREE.Mesh(new THREE.BoxGeometry(bannerW + 0.6, 0.15, 0.25), glowBorderMat);
+  topTrim.position.set(0, bannerY + bannerH / 2 + 0.1, bannerZ + 0.05);
+  g.add(topTrim);
+
+  const botTrim = new THREE.Mesh(new THREE.BoxGeometry(bannerW + 0.6, 0.15, 0.25), glowBorderMat);
+  botTrim.position.set(0, bannerY - bannerH / 2 - 0.1, bannerZ + 0.05);
+  g.add(botTrim);
+
+  const leftTrim = new THREE.Mesh(new THREE.BoxGeometry(0.15, bannerH + 0.4, 0.25), glowBorderMat);
+  leftTrim.position.set(-bannerW / 2 - 0.15, bannerY, bannerZ + 0.05);
+  g.add(leftTrim);
+
+  const rightTrim = new THREE.Mesh(new THREE.BoxGeometry(0.15, bannerH + 0.4, 0.25), glowBorderMat);
+  rightTrim.position.set(bannerW / 2 + 0.15, bannerY, bannerZ + 0.05);
+  g.add(rightTrim);
+
+  // 3. Front Face Poster Mesh (with subtle self-illumination for concert performances)
+  const posterMat = new THREE.MeshStandardMaterial({
+    map: texFront,
+    roughness: 0.6,
+    metalness: 0.1,
+    emissive: 0xffffff,
+    emissiveMap: texFront,
+    emissiveIntensity: 0.35,
+  });
+  const frontPlane = new THREE.Mesh(new THREE.PlaneGeometry(bannerW, bannerH), posterMat);
+  frontPlane.position.set(0, bannerY, bannerZ + 0.11);
+  g.add(frontPlane);
+
+  // 4. Heavy-duty Stage Rigging Brackets (anchored to the top bamboo truss at y=18.5)
+  [-bannerW * 0.35, 0, bannerW * 0.35].forEach(bx => {
+    const bracket = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.2, 8), frameMat);
+    bracket.position.set(bx, 18.8, bannerZ - 0.1);
+    g.add(bracket);
+  });
+
+  // 5. Overhead Stage Spotlights focused on the header
+  [-bannerW * 0.3, 0, bannerW * 0.3].forEach(sx => {
+    const spot = new THREE.SpotLight(0xfff5e6, 4, 20, Math.PI / 4, 0.5, 1);
+    spot.position.set(sx, bannerY + bannerH / 2 + 1.2, bannerZ + 2.5);
+    spot.target.position.set(sx, bannerY, bannerZ);
+    g.add(spot);
+    g.add(spot.target);
+
+    // Light fixture housing
+    const fixture = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.4, 8), frameMat);
+    fixture.position.set(sx, bannerY + bannerH / 2 + 1.2, bannerZ + 2.5);
+    fixture.rotation.x = -Math.PI / 4;
+    g.add(fixture);
+  });
+
+  return g;
+}
+
 export function createBeachHackerHouseBanner(x: number, z: number, rotY: number = 0) {
   // Aspect ratio 1024x581 -> 6.0 width x 3.40 height
   return createBeachBillboard(x, z, rotY, getHackerHouseBannerTextures(), 6.0, 3.40);
